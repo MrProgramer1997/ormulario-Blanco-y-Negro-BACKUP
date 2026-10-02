@@ -1,14 +1,1 @@
-{
-  "name": "blanco-negro-2026",
-  "version": "2.0.0-visual-preview",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "node tools/serve.mjs",
-    "test": "node --test tests/*.test.mjs",
-    "build:preview": "node tools/build-preview.mjs"
-  },
-  "engines": {
-    "node": ">=20"
-  }
-}
+{"name":"bn2026-deploy-test","private":true,"type":"module","scripts":{"test":"node --test tests/*.test.mjs"},"engines":{"node":">=20"}}
