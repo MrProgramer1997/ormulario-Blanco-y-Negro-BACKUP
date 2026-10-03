@@ -35,7 +35,7 @@ async function check(){
   try{const r=await api('status',{id:operation.id,token:operation.token});operation.status=r.status;operation.invoice=r.invoice;persist();tracking();if(TERMINAL.includes(r.status)||r.status==='review'){clearInterval(timer);await refresh();}}
   catch(e){message(e.message);}finally{polling=false;controls();}
 }
-function startPolling(){clearInterval(timer);checks=0;timer=setInterval(()=>{if(document.hidden)return;if(++checks>24){clearInterval(timer);return;}void check();},5000);}
+function startPolling(){clearInterval(timer);checks=0;timer=setInterval(()=>{if(document.hidden)return;if(++checks>120){clearInterval(timer);return;}void check();},5000);}
 async function open(){
   if(!operation?.sessionId||operation.status!=='payment_pending'||busy)return;
   busy=true;controls();
@@ -50,7 +50,7 @@ async function send(){
   finally{busy=false;controls();}
   if(operation?.sessionId&&operation.opened!==true)await open();
 }
-$('login-form').addEventListener('submit',async ev=>{ev.preventDefault();$('login-button').disabled=true;try{await login($('username').value,$('password').value);$('password').value='';await refresh();if(ready)message('Acceso validado. Elige un importe de ensayo.');if(operation?.id)void check();}catch(e){message(e.message);}finally{$('login-button').disabled=false;}});
+$('login-form').addEventListener('submit',async ev=>{ev.preventDefault();$('login-button').disabled=true;try{await login($('username').value,$('password').value);$('password').value='';await refresh();if(ready)message('Acceso validado. Elige un importe de ensayo.');if(operation?.id){void check();if(!TERMINAL.includes(operation.status)&&operation.status!=='review')startPolling();}}catch(e){message(e.message);}finally{$('login-button').disabled=false;}});
 $('amounts').addEventListener('click',ev=>{const b=ev.target.closest('[data-case]');if(!b||operation)return;selected=b.dataset.case;document.querySelectorAll('[data-case]').forEach(x=>{const active=x===b;x.setAttribute('aria-pressed',String(active));x.classList.toggle('active',active);});group();});
 ['members','quantity'].forEach(id=>$(id).addEventListener('input',group));
 $('payment-form').addEventListener('submit',async ev=>{ev.preventDefault();if(busy||operation||!ready)return;
@@ -66,4 +66,4 @@ $('next-test').addEventListener('click',()=>{if(!operation||!TERMINAL.includes(o
 $('refresh').addEventListener('click',()=>refresh().catch(e=>message(e.message)));
 $('logout').addEventListener('click',async()=>{clearInterval(timer);await logout();ready=false;$('lab-workspace').hidden=true;$('lab-login').hidden=false;message('Sesion cerrada. Una solicitud pendiente no se cancela al salir.');});
 document.querySelectorAll('[data-case]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.case===selected));b.classList.toggle('active',b.dataset.case===selected);});
-group();if(session())refresh().then(()=>{if(operation?.id)void check();}).catch(e=>{message(e.message);$('lab-workspace').hidden=true;$('lab-login').hidden=false;});
+group();if(session())refresh().then(()=>{if(operation?.id){void check();if(!TERMINAL.includes(operation.status)&&operation.status!=='review')startPolling();}}).catch(e=>{message(e.message);$('lab-workspace').hidden=true;$('lab-login').hidden=false;});

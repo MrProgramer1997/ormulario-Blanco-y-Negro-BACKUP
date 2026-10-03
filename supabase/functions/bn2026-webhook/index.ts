@@ -1,3 +1,3 @@
-import { createHandler } from '../_shared/confirmation-handler.mjs';
+import { createAutomaticHandler } from '../_shared/automatic-confirmation.mjs';
 import { withBrowserCors } from '../_shared/browser-cors.mjs';
-Deno.serve(withBrowserCors(createHandler()));
+Deno.serve(withBrowserCors(createAutomaticHandler()));

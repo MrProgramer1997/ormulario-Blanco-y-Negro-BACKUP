@@ -11,7 +11,7 @@ async function check(){
  try{const r=await api('status',{id,token:ticket.token});const text=states[r.status]||states.review;$('result-title').textContent=text[0];$('result-message').textContent=text[1];$('result-details').innerHTML=`<div class="review-block" style="margin-top:20px"><p>Referencia: <strong>${e(r.invoice)}</strong></p><p>Mesa de ensayo: ${r.table_number}</p><p>Valor: ${money(r.amount)}</p></div>`;
  if(['confirmed','declined','expired','review'].includes(r.status))clearInterval(timer);
  }catch(err){$('result-title').textContent='La verificaci\u00f3n sigue pendiente';$('result-message').textContent=err.message;}
- finally{running=false;$('check-status').disabled=false;attempts++;if(attempts>=24)clearInterval(timer);}
+ finally{running=false;$('check-status').disabled=false;attempts++;if(attempts>=120)clearInterval(timer);}
 }
 $('check-status').addEventListener('click',check);check();if(!CONFIG.preview || ticket?.lab===true)timer=setInterval(()=>{if(!document.hidden)check();},5000);
 
