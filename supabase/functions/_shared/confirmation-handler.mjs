@@ -1,7 +1,7 @@
 import { HttpError, secret, sha256, equalHex, limitedText, response, rpc, db, q, adminIdentity, rateLimit } from './http.ts';
 import { amountCOP, uuid } from './validation.mjs';
 import { VerificationError, queryDetail, numericReference } from './epayco-detail.mjs';
-export const BUILD = 'bn-confirmation-apify-1';
+export const BUILD = 'bn-confirmation-native-1';
 const isRecord = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 function parseParams(params) {
   for (const name of new Set(params.keys())) {
