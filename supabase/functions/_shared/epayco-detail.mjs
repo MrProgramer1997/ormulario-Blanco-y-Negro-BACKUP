@@ -1,4 +1,3 @@
-import { request as httpsRequest } from 'node:https';
 import { Buffer } from 'node:buffer';
 import { amountCOP, testFlag, paymentStatus } from './validation.mjs';
 
@@ -51,57 +50,46 @@ export function normalizeDetail(payload, expectedReference, expectedMerchant) {
   if (status !== logStatus) throw new VerificationError('PROVIDER_STATE_INCONSISTENT');
   return { reference: ref, merchant, transaction, invoice, amount, currency, isTest, status };
 }
-export function apifyJson(path, method, body, authorization, requestImpl = httpsRequest) {
+export async function apifyJson(path, method, body, authorization, fetchImpl = fetch) {
   if (!['/login', '/transaction/detail'].includes(path)) throw new VerificationError('PROVIDER_ROUTE_NOT_ALLOWED');
   if ((path === '/login' && method !== 'POST') || (path === '/transaction/detail' && method !== 'GET')) {
     throw new VerificationError('PROVIDER_METHOD_NOT_ALLOWED');
   }
-  return new Promise((resolve, reject) => {
-    const data = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
-    let settled = false;
-    let req;
-    const finish = (err, value) => {
-      if (settled) return;
-      settled = true; clearTimeout(deadline);
-      err ? reject(err) : resolve(value);
-    };
-    const deadline = setTimeout(() => {
-      finish(new VerificationError('PROVIDER_TIMEOUT'));
-      req?.destroy();
-    }, 9000);
-    try {
-      req = requestImpl({
-        hostname: 'apify.epayco.co', port: 443, path, method,
-        rejectUnauthorized: true, agent: false,
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json',
-          Authorization: authorization, ...(data ? { 'Content-Length': data.length } : {}) },
-      }, res => {
-        const code = res.statusCode ?? 0;
-        if (code < 200 || code >= 300) {
-          res.resume();
-          finish(new VerificationError(code === 401 || code === 403 ? 'PROVIDER_AUTH_OR_PERMISSION' : 'PROVIDER_HTTP_ERROR'));
-          return;
-        }
-        let bytes = 0; const chunks = [];
-        res.on('data', chunk => {
-          const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-          bytes += part.length;
-          if (bytes > 1048576) {
-            finish(new VerificationError('PROVIDER_RESPONSE_TOO_LARGE')); req.destroy(); return;
-          }
-          chunks.push(part);
-        });
-        res.on('error', () => finish(new VerificationError('PROVIDER_READ_FAILED')));
-        res.on('aborted', () => finish(new VerificationError('PROVIDER_READ_FAILED')));
-        res.on('end', () => {
-          try { finish(null, JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
-          catch { finish(new VerificationError('PROVIDER_JSON_INVALID')); }
-        });
-      });
-      req.on('error', () => finish(new VerificationError('PROVIDER_NETWORK_ERROR')));
-      req.end(data);
-    } catch { finish(new VerificationError('PROVIDER_TRANSPORT_ERROR')); }
-  });
+  const url = new URL(path, 'https://apify.epayco.co');
+  if (path === '/transaction/detail') {
+    // Native fetch cannot send a GET body. Preserve GET and use the named filter.
+    // Provider acceptance must still be verified end-to-end before release.
+    url.searchParams.set('filter[referencePayco]', numericReference(body?.filter?.referencePayco));
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 9000);
+  try {
+    const result = await fetchImpl(url.href, {
+      method, redirect: 'error', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: authorization },
+    });
+    if (!result.ok) {
+      await result.body?.cancel();
+      throw new VerificationError(result.status === 401 || result.status === 403 ? 'PROVIDER_AUTH_OR_PERMISSION' : 'PROVIDER_HTTP_ERROR');
+    }
+    const reader = result.body?.getReader();
+    if (!reader) throw new VerificationError('PROVIDER_JSON_INVALID');
+    let size = 0; const parts = [];
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 1048576) { await reader.cancel(); throw new VerificationError('PROVIDER_RESPONSE_TOO_LARGE'); }
+      parts.push(value);
+    }
+    const content = new Uint8Array(size); let offset = 0;
+    for (const part of parts) { content.set(part, offset); offset += part.byteLength; }
+    try { return JSON.parse(new TextDecoder().decode(content)); }
+    catch { throw new VerificationError('PROVIDER_JSON_INVALID'); }
+  } catch (err) {
+    if (err instanceof VerificationError) throw err;
+    throw new VerificationError(controller.signal.aborted ? 'PROVIDER_TIMEOUT' : 'PROVIDER_NETWORK_ERROR');
+  } finally { clearTimeout(timer); }
 }
 export async function queryDetail(reference, secret, transport = apifyJson) {
   const ref = numericReference(reference);
