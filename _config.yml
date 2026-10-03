@@ -38,3 +38,5 @@ exclude:
   - "*.zip"
   - "RESULTADO*.json"
   - "DIAGNOSTICO*.json"
+  - assets/mesas-coords.json
+  - assets/plano-blanco-negro.jpg

@@ -4,8 +4,6 @@
 !*/
 !/.gitignore
 !/_config.yml
-!/assets/mesas-coords.json
-!/assets/plano-blanco-negro.jpg
 !/index.html
 !/revision-2026/admin.html
 !/revision-2026/assets/app.css
