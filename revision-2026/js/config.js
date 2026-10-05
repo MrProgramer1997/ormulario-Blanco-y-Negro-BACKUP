@@ -1,11 +1,14 @@
 // Configuration only. NEVER add ePayco secrets or a Supabase service_role here.
 export const CONFIG = Object.freeze({
-  preview: true, // Visual preview: no reservations, no requests to ePayco.
+  preview: false, // Production form. Event enable flag controls commercial launch.
+  paymentEnvironment: 'live',
+  defaultTestCase: 'T1500',
   apiUrl: 'https://cmrydhzpcuklfvigboka.supabase.co/functions/v1/bn2026-api',
+  liveApiUrl: 'https://cmrydhzpcuklfvigboka.supabase.co/functions/v1/bn2026-live-api',
   authUrl: 'https://cmrydhzpcuklfvigboka.supabase.co/auth/v1',
   anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtcnlkaHpwY3VrbGZ2aWdib2thIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzU1NDIsImV4cCI6MjA3ODExMTU0Mn0.SzLh-CoahU63AISJwPKJLJkAf-JQ2qxAwUt69NsPKgQ',
   eventSlug: 'blanco-negro-2026',
-  version: '2026.10.02-preview.1',
+  version: '2026.10.03-live-launch-review.1',
 });
 export const EVENT = Object.freeze({
   name: 'Fiesta Blanco y Negro', date: '2026-11-06',

@@ -1,5 +1,5 @@
-import {storage} from './domain.js';
-import {CONFIG} from './config.js';
+import {storage} from './domain.js?v=member-directory-20261004-1';
+import {CONFIG} from './config.js?v=member-directory-20261004-2';
 const KEY='bn2026-admin-session';
 let refreshTask=null;
 // Session tokens stay in this tab only, not localStorage.
@@ -32,6 +32,14 @@ export async function api(action,body={},privateCall=false){
  if(!r.ok)throw new Error(data.error||'No fue posible completar la solicitud.');
  return data;
 }
+export async function liveApi(action,body={},privateCall=false){
+ const token=privateCall?await currentToken():null;
+ if(privateCall&&!token)throw new Error('Debes iniciar sesion como administrador.');
+ const r=await fetch(CONFIG.liveApiUrl,{method:'POST',headers:{'Content-Type':'application/json',apikey:CONFIG.anonKey,...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify({action,...body}),signal:AbortSignal.timeout(25000)});
+ const data=await r.json().catch(()=>({error:'Respuesta no valida del servidor de produccion.'}));
+ if(!r.ok){const err=new Error(data.error||'No fue posible completar la operacion de produccion.');err.data=data;err.httpStatus=r.status;throw err;}
+ return data;
+}
 export async function login(username,password){
  const result=await api('login',{username,password});saveSession(result);return result;
 }
@@ -47,6 +55,20 @@ export async function openCheckout(sessionId,test,onChange){
   });
  }
  const checkout=window.ePayco.checkout.configure({sessionId,type:'onpage',test});
- checkout.setHooks({onResponse:onChange,onClosed:onChange,onErrors:()=>onChange({error:true})});
+ let responseSeen=false;
+ checkout.setHooks({
+  onResponse:data=>{responseSeen=true;onChange(data);},
+  onClosed:()=>{if(!responseSeen)onChange({bnEvent:'closed'});},
+  onErrors:()=>onChange({bnEvent:'error',error:true}),
+ });
  checkout.open();
+}
+
+export async function confirmationStatus(){
+ const token=await currentToken();if(!token)throw Error('Ingresa como administrador.');
+ const url=CONFIG.apiUrl.replace(/\/bn2026-api$/, '/bn2026-webhook');
+ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',apikey:CONFIG.anonKey,Authorization:'Bearer '+token},body:JSON.stringify({action:'queue_status'}),signal:AbortSignal.timeout(15000)});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok||data.automatic!==true)throw Error('No se pudo verificar la confirmacion automatica. No inicies otro pago.');
+ return data;
 }

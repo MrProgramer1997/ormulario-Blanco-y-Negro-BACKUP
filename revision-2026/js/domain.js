@@ -1,9 +1,9 @@
-import { EVENT } from './config.js';
+import { EVENT } from './config.js?v=member-directory-20261004-2';
 export const money = value => new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(value);
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const blankPerson = () => ({firstName:'',lastName:'',action:'',docType:'CC',document:'',email:'',phone:''});
+export const blankPerson = () => ({memberId:'',memberName:'',firstName:'',lastName:'',action:'',docType:'CC',document:'',email:'',phone:''});
 export function createDraft() {
- return {version:1,step:0,table:null,quantity:8,guests:0,responsibleAttends:true,responsibleType:'member',
+ return {version:2,step:0,table:null,quantity:8,guests:0,responsibleAttends:true,responsibleType:'member',
   responsible:{firstName:'',lastName:'',email:'',phone:''},members:Array.from({length:10},blankPerson),
   visitors:Array.from({length:10},blankPerson),terms:false,remember:false};
 }
@@ -24,10 +24,10 @@ function ensureResponsibleCount(d) {
 }
 export function syncResponsible(d) {
  ensureResponsibleCount(d);
- if(!d.responsibleAttends) return;
- const target=d.responsibleType==='member'?d.members[0]:d.visitors[0];
+ if(!d.responsibleAttends||d.responsibleType!=='guest') return;
+ const target=d.visitors[0];
  target.firstName=d.responsible.firstName; target.lastName=d.responsible.lastName;
- if(d.responsibleType==='guest'){target.email=d.responsible.email;target.phone=d.responsible.phone;}
+ target.email=d.responsible.email;target.phone=d.responsible.phone;
 }
 export function totals(d,prices=EVENT) {
  const members=d.quantity-d.guests, guests=d.guests;
@@ -37,15 +37,16 @@ export const isEmail = s=>typeof s==='string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.te
 export const isPhone = s=>typeof s==='string' && /^\+?[0-9 ()-]{7,25}$/.test(s) && s.replace(/\D/g,'').length>=7;
 export function personErrors(p,type) {
  const errors=[];
- if(!p.firstName?.trim()) errors.push('firstName');
- if(!p.lastName?.trim()) errors.push('lastName');
- if(type==='member'){if(!p.action?.trim()) errors.push('action');}
- else {
-  if(!['CC','CE','PAS','OTRO'].includes(p.docType)) errors.push('docType');
-  if(!/^[A-Za-z0-9. -]{4,30}$/.test(p.document||'')) errors.push('document');
-  if(!isEmail(p.email)) errors.push('email');
-  if(!isPhone(p.phone)) errors.push('phone');
+ if(type==='member'){
+  if(typeof p.memberId!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(p.memberId)||!p.memberName?.trim()||!p.action?.trim()) errors.push('search');
+  return errors;
  }
+ if(!p.firstName?.trim()||p.firstName.trim().length>80) errors.push('firstName');
+ if(!p.lastName?.trim()||p.lastName.trim().length>80) errors.push('lastName');
+ if(!['CC','CE','PAS','OTRO'].includes(p.docType)) errors.push('docType');
+ if(!/^[A-Za-z0-9. -]{4,30}$/.test(p.document||'')) errors.push('document');
+ if(!isEmail(p.email)) errors.push('email');
+ if(!isPhone(p.phone)) errors.push('phone');
  return errors;
 }
 export function attendees(d) {
@@ -53,13 +54,27 @@ export function attendees(d) {
  ...d.visitors.slice(0,d.guests).map((p,i)=>({...p,type:'guest',index:i}))];
 }
 export function duplicates(d){
- const seen=new Set();
- // Members can legitimately share an action number. Guest document numbers cannot repeat.
- return attendees(d).filter(p=>p.type==='guest').some(p=>{const key=p.docType+':'+p.document.replace(/[ .-]/g,'').toUpperCase();if(!p.document)return false;if(seen.has(key))return true;seen.add(key);return false;});
+ const memberIds=new Set(),guestDocs=new Set();
+ for(const p of attendees(d)){
+  if(p.type==='member'){
+   if(!p.memberId)continue;
+   if(memberIds.has(p.memberId))return true;
+   memberIds.add(p.memberId);
+  }else{
+   const key=p.docType+':'+p.document.replace(/[ .-]/g,'').toUpperCase();
+   if(!p.document)continue;
+   if(guestDocs.has(key))return true;
+   guestDocs.add(key);
+  }
+ }
+ return false;
 }
 export function toPayload(d){
  return {table:d.table,quantity:d.quantity,responsible:{...d.responsible},
- attendees:attendees(d).map(({index,...p})=>p),acceptedTerms:d.terms};
+ attendees:attendees(d).map(({index,type,...p})=>type==='member'
+  ?{type:'member',memberId:p.memberId}
+  :{type:'guest',firstName:p.firstName,lastName:p.lastName,docType:p.docType,document:p.document,email:p.email,phone:p.phone}),
+ acceptedTerms:d.terms};
 }
 export function csvCell(v){
  let text=String(v??'');
